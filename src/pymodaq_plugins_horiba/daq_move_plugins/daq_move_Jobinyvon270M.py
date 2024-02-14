@@ -3,7 +3,7 @@ from pymodaq.control_modules.move_utility_classes import DAQ_Move_base, comon_pa
 from pymodaq.utils.daq_utils import ThreadCommand  # object used to send info back to the main thread
 from pymodaq.utils.parameter import Parameter
 from pyvisa.constants import ControlFlow, Parity, StopBits
-from pymeasure.pymeasure.instruments.jobinyvon.spectro270m import JY270M
+from..hardware.horiba.spectro270m import JY270M
 
 
 class JY270M('COM1',
@@ -57,7 +57,7 @@ class DAQ_Move_Jobinyvon270M(DAQ_Move_base):
 
 
     def ini_attributes(self):
-        self.controller: JY270M = None
+        self.controller: JY270M() = None
 
 
     def get_actuator_value(self):
@@ -67,6 +67,8 @@ class DAQ_Move_Jobinyvon270M(DAQ_Move_base):
         -------
         float: The position obtained after scaling conversion.
         """
+        while self.controller.motor_busy_check():
+            pass
         pos = DataActuator(
             data=self.controller.get_grating_wavelength())
         pos = self.get_position_with_scaling(pos)
