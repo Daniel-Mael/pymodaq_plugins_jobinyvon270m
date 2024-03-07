@@ -22,8 +22,8 @@
 # THE SOFTWARE.
 #
 
-from pymeasure.pymeasure.instruments import Instrument
-from pymeasure.pymeasure.instruments.validators import modular_range, truncated_discrete_set, truncated_range, strict_range
+from pymeasure.instruments import Instrument
+from pymeasure.instruments.validators import modular_range, truncated_discrete_set, truncated_range, strict_range
 from pyvisa.constants import ControlFlow, Parity, StopBits
 import time
 import pyvisa

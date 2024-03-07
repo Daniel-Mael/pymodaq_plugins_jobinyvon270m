@@ -3,19 +3,8 @@ from pymodaq.control_modules.move_utility_classes import DAQ_Move_base, comon_pa
 from pymodaq.utils.daq_utils import ThreadCommand  # object used to send info back to the main thread
 from pymodaq.utils.parameter import Parameter
 from pyvisa.constants import ControlFlow, Parity, StopBits
-from..hardware.horiba.spectro270m import JY270M
+from pymodaq_plugins_horiba.hardware.horiba.spectro270m import JY270M
 
-
-class JY270M('COM1',
-             baud_rate=9600,
-             timeout=300,
-             parity=Parity.none,
-             data_bits=8,
-             stop_bits=StopBits.one,
-             flow_control=ControlFlow.dtr_dsr,
-             write_termination='',
-             read_termination=''):
-    pass
 
 
 class DAQ_Move_Jobinyvon270M(DAQ_Move_base):
@@ -42,7 +31,7 @@ class DAQ_Move_Jobinyvon270M(DAQ_Move_base):
     """
     _controller_units = 'nm'
     is_multiaxes = False
-    _axis_names = ['Axis1', 'Axis2']  # TODO for your plugin: complete the list
+    _axis_names = []  # TODO for your plugin: complete the list
     _epsilon = 0.03125  # TODO replace this by a value that is correct depending on your controller
     _epsilon_slits = 6.35  # TODO replace this by a value that is correct depending on your controller
 
@@ -52,13 +41,12 @@ class DAQ_Move_Jobinyvon270M(DAQ_Move_base):
 
     params = [{'title': 'Slits:', 'name': 'slits', 'type': 'group', 'expanded': True, 'children': [
                 {'title': 'Entry slit:', 'name': 'entry_slit', 'type': 'float', 'value': 0.0, 'min': 0.0, 'max': 7000.0},
-                {'title': 'Exit slit:', 'name': 'exit_slit', 'type': 'float', 'value': 0.0, 'min': 0.0, 'max': 7000.0}]
-                + comon_parameters_fun(is_multiaxes, axis_names=_axis_names, epsilon=_epsilon_slits)}]
+                {'title': 'Exit slit:', 'name': 'exit_slit', 'type': 'float', 'value': 0.0, 'min': 0.0, 'max': 7000.0}]}] \
+                + comon_parameters_fun(is_multiaxes, axis_names=_axis_names, epsilon=_epsilon)
 
 
     def ini_attributes(self):
-        self.controller: JY270M() = None
-
+        self.controller: JY270M = None
 
     def get_actuator_value(self):
         """Get the current value from the hardware with scaling conversion.
@@ -110,13 +98,23 @@ class DAQ_Move_Jobinyvon270M(DAQ_Move_base):
             False if initialization failed otherwise True
         """
         self.controller = self.ini_stage_init(old_controller=controller,
-                                              new_controller=JY270M())
+                                              new_controller=JY270M('COM1',
+                                                                    baud_rate=9600,
+                                                                    timeout=300,
+                                                                    parity=Parity.none,
+                                                                    data_bits=8,
+                                                                    stop_bits=StopBits.one,
+                                                                    flow_control=ControlFlow.dtr_dsr,
+                                                                    write_termination='',
+                                                                    read_termination='',
+                                                                    includeSCPI=False))
 
         info = "Setting up Jobin Yvon 270M spectrometer and activating intelligent communication mode..."
         initialized = self.controller.auto_baud()
         if not initialized:
             raise IOError('The spectrometer could not be initialized, please reset the instrument.')
-
+        else:
+            self.controller.motor_init()
         return info, initialized
 
     def move_abs(self, value: DataActuator):
