@@ -268,3 +268,4 @@ if __name__ == '__main__':
                      write_termination='',
                      read_termination='',
                      includeSCPI=False)
+

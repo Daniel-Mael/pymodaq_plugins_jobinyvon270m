@@ -18,30 +18,18 @@ class DAQ_Move_Jobinyvon270M(DAQ_Move_base):
         * With which instrument and controller it has been tested.
         * The version of PyMoDAQ during the test.
         * The version of the operating system.
-        * Installation instructions: what manufacturer’s drivers should be installed to make it run?
+        * Installation instructions: what manufacturer’s drivers should be installed to make it run?"""
 
-    Attributes:
-    -----------
-    controller: object
-        The particular object that allow the communication with the hardware, in general a python wrapper around the
-         hardware library.
-
-    # TODO add your particular attributes here if any
-
-    """
     _controller_units = 'nm'
     is_multiaxes = False
     _axis_names = []  # TODO for your plugin: complete the list
     _epsilon = 0.03125  # TODO replace this by a value that is correct depending on your controller
-    _epsilon_slits = 6.35  # TODO replace this by a value that is correct depending on your controller
 
-    """data_actuator_type = DataActuatorType[
-        'DataActuator']  # wether you use the new data style for actuator otherwise set this
-    # as  DataActuatorType['float']  (or entirely remove the line)"""
+    data_actuator_type = DataActuatorType['DataActuator']
 
     params = [{'title': 'Slits:', 'name': 'slits', 'type': 'group', 'expanded': True, 'children': [
-                {'title': 'Entry slit:', 'name': 'entry_slit', 'type': 'float', 'value': 0.0, 'min': 0.0, 'max': 7000.0},
-                {'title': 'Exit slit:', 'name': 'exit_slit', 'type': 'float', 'value': 0.0, 'min': 0.0, 'max': 7000.0}]}] \
+                {'title': 'Entry slit (µm):', 'name': 'entry_slit', 'type': 'float', 'value': 0.0, 'min': 0.0, 'max': 7000.0},
+                {'title': 'Exit slit (µm):', 'name': 'exit_slit', 'type': 'float', 'value': 0.0, 'min': 0.0, 'max': 7000.0}]}] \
                 + comon_parameters_fun(is_multiaxes, axis_names=_axis_names, epsilon=_epsilon)
 
 
@@ -115,6 +103,7 @@ class DAQ_Move_Jobinyvon270M(DAQ_Move_base):
             raise IOError('The spectrometer could not be initialized, please reset the instrument.')
         else:
             self.controller.motor_init()
+            self.get_actuator_value()
         return info, initialized
 
     def move_abs(self, value: DataActuator):
@@ -129,7 +118,12 @@ class DAQ_Move_Jobinyvon270M(DAQ_Move_base):
         self.target_value = value
         value = self.set_position_with_scaling(value)  # apply scaling if the user specified one
         self.controller.move_grating_wavelength(value.value())
-        self.emit_status(ThreadCommand('Update_Status', [self.controller.get_grating_wavelength()]))
+
+
+        #on a mis un get_actuator_value car avec le "ThreadCommand" on avait des messages d'erreurs,
+        #mais le programme fonctionnait quand même
+        self.get_actuator_value()
+        #self.emit_status(ThreadCommand('Update_Status', [self.controller.get_grating_wavelength()]))
 
     def move_rel(self, value: DataActuator):
         """ Move the actuator to the relative target actuator value defined by value
