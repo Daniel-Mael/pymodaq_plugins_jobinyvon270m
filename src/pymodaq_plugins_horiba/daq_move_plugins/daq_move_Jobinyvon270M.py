@@ -149,6 +149,7 @@ class DAQ_Move_Jobinyvon270M(DAQ_Move_base):
         """Stop the actuator and emits move_done signal"""
 
         self.controller.motor_stop() # Command to stop the movement of the motor.
+        time.sleep(1)
         self.emit_status(ThreadCommand('Update_Status', ['Some info you want to log']))
 
 
