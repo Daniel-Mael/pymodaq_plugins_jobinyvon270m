@@ -1,2 +1,9 @@
-#this is the configuration file of the plugin
+title = 'this is the configuration file of the plugin horiba'
+
+com_port = 'COM1'
+
+[slits]
+entry = 100  # µm
+exit = 100  # µm
+
 
