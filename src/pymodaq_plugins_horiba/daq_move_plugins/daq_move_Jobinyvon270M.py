@@ -3,8 +3,15 @@ from pymodaq.control_modules.move_utility_classes import DAQ_Move_base, comon_pa
 from pymodaq.utils.daq_utils import ThreadCommand  # object used to send info back to the main thread
 from pymodaq.utils.parameter import Parameter
 from pyvisa.constants import ControlFlow, Parity, StopBits
-from pymodaq_plugins_horiba.hardware.horiba.spectro270m import JY270M
+from pymeasure.instruments.jobinyvon.spectro270m import JY270M
+from pymodaq_plugins_horiba.utils import Config
 
+
+config = Config()
+
+#find available COM ports
+import serial.tools.list_ports
+ports = [str(port)[0:4] for port in list(serial.tools.list_ports.comports())]
 
 
 class DAQ_Move_Jobinyvon270M(DAQ_Move_base):
@@ -27,14 +34,19 @@ class DAQ_Move_Jobinyvon270M(DAQ_Move_base):
 
     data_actuator_type = DataActuatorType['DataActuator']
 
-    params = [{'title': 'Slits:', 'name': 'slits', 'type': 'group', 'expanded': True, 'children': [
-                {'title': 'Entry slit (µm):', 'name': 'entry_slit', 'type': 'float', 'value': 0.0, 'min': 0.0, 'max': 7000.0},
-                {'title': 'Exit slit (µm):', 'name': 'exit_slit', 'type': 'float', 'value': 0.0, 'min': 0.0, 'max': 7000.0}]}] \
-                + comon_parameters_fun(is_multiaxes, axis_names=_axis_names, epsilon=_epsilon)
+    params = [{'title': 'COM Port:', 'name': 'com_port', 'type': 'list', 'limits': ports,
+               'value': config('com_port')},
+              {'title': 'Slits:', 'name': 'slits', 'type': 'group', 'expanded': True, 'children': [
+                  {'title': 'Entry slit (µm):', 'name': 'entry_slit', 'type': 'float',
+                   'value': config('slits', 'entry'), 'min': 0.0, 'max': 7000.0},
+                  {'title': 'Exit slit (µm):', 'name': 'exit_slit', 'type': 'float',
+                   'value': config('slits', 'exit'), 'min': 0.0, 'max': 7000.0}]}] \
+             + comon_parameters_fun(is_multiaxes, axis_names=_axis_names, epsilon=_epsilon)
 
 
     def ini_attributes(self):
         self.controller: JY270M = None
+        self.settings.child("epsilon").setLimits((self._epsilon, 1000))  #The minimal resolution value is self._epsilon
 
     def get_actuator_value(self):
         """Get the current value from the hardware with scaling conversion.
@@ -64,11 +76,13 @@ class DAQ_Move_Jobinyvon270M(DAQ_Move_base):
             A given parameter (within detector_settings) whose value has been changed by the user
         """
         if param.name() == "entry_slit":
-            self.controller.timeout = 10 # so that the slit has time to settle
+            self.controller.timeout = 10000  # so that the slit has time to settle
             self.controller.move_entry_slit_microns(param.value())
+            self.controller.timeout = self.controller.default_timeout
         elif param.name() == "exit_slit":
-            self.controller.timeout = 10 # so that the slit has time to settle
+            self.controller.timeout = 10000  # so that the slit has time to settle
             self.controller.move_exit_slit_microns(param.value())
+            self.controller.timeout = self.controller.default_timeout
 
 
     def ini_stage(self, controller=None):
@@ -85,25 +99,21 @@ class DAQ_Move_Jobinyvon270M(DAQ_Move_base):
         initialized: bool
             False if initialization failed otherwise True
         """
-        self.controller = self.ini_stage_init(old_controller=controller,
-                                              new_controller=JY270M('COM1',
-                                                                    baud_rate=9600,
-                                                                    timeout=300,
-                                                                    parity=Parity.none,
-                                                                    data_bits=8,
-                                                                    stop_bits=StopBits.one,
-                                                                    flow_control=ControlFlow.dtr_dsr,
-                                                                    write_termination='',
-                                                                    read_termination='',
-                                                                    includeSCPI=False))
+        self.controller: JY270M = self.ini_stage_init(
+            old_controller=controller,
+            new_controller=JY270M(self.settings['com_port'],
+                                  ))
 
         info = "Setting up Jobin Yvon 270M spectrometer and activating intelligent communication mode..."
         initialized = self.controller.auto_baud()
         if not initialized:
             raise IOError('The spectrometer could not be initialized, please reset the instrument.')
-        else:
-            self.controller.motor_init()
-            self.get_actuator_value()
+
+        self.controller.motor_init()
+        self.get_actuator_value()
+        self.controller.move_entry_slit_microns(self.settings['slits', 'entry_slit'])
+        self.controller.move_exit_slit_microns(self.settings['slits', 'exit_slit'])
+
         return info, initialized
 
     def move_abs(self, value: DataActuator):
@@ -119,12 +129,6 @@ class DAQ_Move_Jobinyvon270M(DAQ_Move_base):
         value = self.set_position_with_scaling(value)  # apply scaling if the user specified one
         self.controller.move_grating_wavelength(value.value())
 
-
-        #on a mis un get_actuator_value car avec le "ThreadCommand" on avait des messages d'erreurs,
-        #mais le programme fonctionnait quand même
-        self.get_actuator_value()
-        #self.emit_status(ThreadCommand('Update_Status', [self.controller.get_grating_wavelength()]))
-
     def move_rel(self, value: DataActuator):
         """ Move the actuator to the relative target actuator value defined by value
 
@@ -135,23 +139,19 @@ class DAQ_Move_Jobinyvon270M(DAQ_Move_base):
         value = self.check_bound(self.current_position + value) - self.current_position
         self.target_value = value + self.current_position
         value = self.set_position_relative_with_scaling(value)
-        value = value*32
+        value = value * self.controller.steps_in_one_nanometer
         self.controller.gsteps = value.value()
-        self.emit_status(ThreadCommand('Update_Status', ['info']))
 
     def move_home(self):
         """Call the reference method of the controller"""
 
-        self.controller.motor_init()
-        self.emit_status(ThreadCommand('Update_Status', ['info']))
+        self.controller.move_grating_wavelength(self.controller.lambda_0)
 
     def stop_motion(self):
         """Stop the actuator and emits move_done signal"""
 
-        self.controller.motor_stop() # Command to stop the movement of the motor.
-        time.sleep(1)
-        self.emit_status(ThreadCommand('Update_Status', ['Some info you want to log']))
+        self.controller.motor_stop()  # Command to stop the movement of the motor.
 
 
 if __name__ == '__main__':
-    main(__file__)
+    main(__file__, init=False)
