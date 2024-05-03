@@ -3,7 +3,7 @@ from pymodaq.control_modules.move_utility_classes import DAQ_Move_base, comon_pa
 from pymodaq.utils.daq_utils import ThreadCommand  # object used to send info back to the main thread
 from pymodaq.utils.parameter import Parameter
 from pyvisa.constants import ControlFlow, Parity, StopBits
-from pymeasure.instruments.jobinyvon.spectro270m import JY270M
+from pymeasure.instruments.jobinyvon.jobinyvon270m import JY270M
 from pymodaq_plugins_horiba.utils import Config
 import serial.tools.list_ports
 
@@ -152,6 +152,9 @@ class DAQ_Move_Jobinyvon270M(DAQ_Move_base):
         Stop the actuator and emit the move_done signal.
         """
         self.controller.motor_stop()  # Command to stop the movement of the motor.
+
+    def close(self):
+        pass
 
 
 if __name__ == '__main__':
